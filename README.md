@@ -1,712 +1,201 @@
 # Progress Tracker
 
-> **Application web de suivi de progression personnelle**
+> Application personnelle de suivi d'habitudes et d'objectifs récurrents, fondée sur un historique d'événements plutôt que sur de simples compteurs.
 
-Version : **1.1**  
-Statut : **Cahier des charges fonctionnel et technique**
-
----
-
-# Sommaire
-
-- [1. Présentation du projet](#1-présentation-du-projet)
-- [2. Contexte](#2-contexte)
-- [3. Vision du projet](#3-vision-du-projet)
-- [4. Objectifs](#4-objectifs)
-- [5. Fonctionnalités](#5-fonctionnalités)
-- [6. Règles de gestion](#6-règles-de-gestion)
-- [7. Modèle métier](#7-modèle-métier)
-- [8. Interfaces prévues](#8-interfaces-prévues)
-- [9. Contraintes techniques](#9-contraintes-techniques)
-- [10. Architecture globale](#10-architecture-globale)
-- [11. Évolutivité vers une application mobile](#11-évolutivité-vers-une-application-mobile)
-- [12. Évolutions futures](#12-évolutions-futures)
-- [13. Critères d'acceptation](#13-critères-dacceptation)
-- [14. Conclusion](#14-conclusion)
+![PHP](https://img.shields.io/badge/PHP-8%2B-777BB4)
+![MySQL](https://img.shields.io/badge/MySQL-8-4479A1)
+![Statut](https://img.shields.io/badge/statut-en%20développement-yellow)
 
 ---
 
-# 1. Présentation du projet
+## Présentation
 
-## Description
+**Progress Tracker** permet de créer des tâches récurrentes (faire du sport, lire, boire suffisamment d'eau, méditer, etc.) et de les valider au fil du temps pour suivre sa régularité. Contrairement à une simple application de "checklist", Progress Tracker ne stocke **jamais** un compteur directement : chaque action de l'utilisateur (création d'une tâche, validation, interruption volontaire d'une série, archivage...) est enregistrée sous forme d'un **événement immuable**, et toutes les statistiques affichées — séries en cours, meilleure série, taux de régularité — sont **recalculées automatiquement** à partir de cet historique.
 
-**Progress Tracker** est une application permettant de suivre des habitudes ou des objectifs personnels nécessitant une répétition régulière.
+Ce choix, détaillé dans la documentation technique, garantit qu'aucune incohérence n'est possible entre les statistiques affichées et l'historique réel de l'utilisateur.
 
-Chaque fois qu'une tâche est réalisée, l'utilisateur la valide en cliquant sur un bouton **Accompli**.
-
-L'application enregistre alors :
-
-- la date ;
-- l'heure ;
-- la progression actuelle ;
-- l'historique complet.
-
-L'utilisateur peut également remettre sa progression à zéro lorsqu'il manque une journée, sans perdre les données des séries précédentes.
-
-L'objectif est de fournir un véritable historique de progression plutôt qu'un simple compteur.
+Le projet est développé en PHP 8 / MySQL 8, selon une architecture en couches strictement séparées, conçue dès le départ pour évoluer vers une API REST, une Progressive Web App, puis une application mobile Flutter — sans jamais dupliquer la logique métier.
 
 ---
 
-# 2. Contexte
+## Sommaire
 
-Certaines habitudes demandent une répétition quotidienne :
-
-- se laver matin et soir ;
-- faire du sport ;
-- lire ;
-- travailler un cours ;
-- boire suffisamment d'eau ;
-- prier ;
-- méditer.
-
-L'utilisateur souhaite mesurer sa régularité sur plusieurs semaines ou plusieurs mois.
-
-L'application devra notamment permettre de répondre à des questions telles que :
-
-- Depuis combien de jours suis-je régulier ?
-- À quelle heure ai-je validé ma tâche aujourd'hui ?
-- Combien de séries ai-je réalisées ?
-- Quelle est ma meilleure série ?
-- Quelles périodes de progression ai-je déjà réalisées ?
-
-Toutes les données devront rester consultables.
+- [Fonctionnalités](#fonctionnalités)
+- [Philosophie du projet](#philosophie-du-projet)
+- [Stack technique](#stack-technique)
+- [Architecture](#architecture)
+- [Documentation](#documentation)
+- [Démarrage rapide](#démarrage-rapide)
+- [Structure du dépôt](#structure-du-dépôt)
+- [Feuille de route](#feuille-de-route)
+- [Export et sauvegarde des données](#export-et-sauvegarde-des-données)
+- [Licence](#licence)
 
 ---
 
-# 3. Vision du projet
+## Fonctionnalités
 
-L'objectif n'est pas uniquement de créer une petite application web.
-
-Le projet est pensé comme une base solide pouvant évoluer progressivement vers un véritable outil personnel de suivi.
-
-L'application devra donc être conçue dès le départ autour des principes suivants :
-
-- architecture propre ;
-- séparation des responsabilités ;
-- logique métier indépendante de l'interface ;
-- forte évolutivité ;
-- possibilité d'ajouter facilement de nouvelles règles métier ;
-- possibilité de développer plusieurs interfaces (Web, Mobile, API) sans réécrire le cœur de l'application.
-
-Le projet constitue également un exercice de conception logicielle et d'architecture orientée objet.
+- Création de tâches récurrentes, avec objectif quotidien configurable (une ou plusieurs fois par jour) et jours actifs personnalisés.
+- Validation quotidienne avec horodatage précis (date et heure).
+- Calcul automatique des séries de progression (*streaks*), sans jamais stocker de compteur directement.
+- Interruption volontaire d'une série (*Reset*) sans jamais perdre l'historique des séries précédentes.
+- Archivage et restauration d'une tâche, sans perte de données.
+- Export et import complets des données via un format ouvert et documenté (`.ptracker`).
+- Architecture pensée dès le départ pour une future API REST et une application mobile Flutter.
 
 ---
 
-# 4. Objectifs
+## Philosophie du projet
 
-L'application devra permettre de :
+Trois principes gouvernent toutes les décisions de conception du projet :
 
-- créer plusieurs tâches ;
-- suivre leur progression ;
-- enregistrer chaque validation ;
-- conserver l'historique complet ;
-- calculer automatiquement les séries de progression ;
-- remettre une série à zéro sans supprimer les anciennes ;
-- gérer plusieurs tâches simultanément ;
-- préparer le projet à une évolution vers une application mobile.
+1. **L'historique est la seule source de vérité.** Aucune donnée n'est stockée si elle peut être recalculée à partir des événements passés.
+2. **La logique métier est indépendante de tout détail technique.** Elle ne connaît ni HTTP, ni PDO, ni le protocole utilisé pour y accéder — ce qui permettra à une future API et une future application mobile de la réutiliser telle quelle, sans duplication.
+3. **Chaque décision de conception est documentée et justifiée**, pas seulement implémentée — ce dépôt contient autant de documentation technique que de code.
 
 ---
 
-# 5. Fonctionnalités
+## Stack technique
 
-## Création d'une tâche
+| Composant          | Choix                                             |
+| ------------------ | ------------------------------------------------- |
+| Langage backend    | PHP 8+                                            |
+| Base de données    | MySQL 8 (InnoDB, `utf8mb4`)                       |
+| Accès aux données  | PDO, requêtes préparées exclusivement             |
+| Frontend (V1)      | HTML5, CSS3, JavaScript, Bootstrap (optionnel)    |
+| Frontend (à venir) | Progressive Web App, puis application Flutter     |
+| Format d'échange   | `.ptracker` (archive ZIP : `manifest.json` + CSV) |
+| Style de code      | PSR-12, autoloading PSR-4                         |
 
-Chaque tâche possède :
+---
 
-- un nom ;
-- une description (optionnelle) ;
-- un objectif (optionnel).
+## Architecture
 
-Exemple :
+Le projet suit une architecture en couches strictement séparées :
 
 ```
-Nom
-
-Faire du sport
-
-Objectif
-
-30 jours
-
-Description
-
-30 minutes minimum.
-```
-
----
-
-## Tableau de bord
-
-Chaque tâche affiche :
-
-- son nom ;
-- la progression actuelle ;
-- l'objectif ;
-- la dernière validation ;
-- un bouton **Accompli** ;
-- un bouton **Reset**.
-
-Exemple :
-
-```
-SPORT
-
-18 jours
-
-Objectif
-
-30 jours
-
-Dernière validation
-
-Aujourd'hui
-08h15
-
-[ Accompli ]
-
-[ Reset ]
-```
-
----
-
-## Validation
-
-Lorsqu'une tâche est validée :
-
-- une seule validation est autorisée par jour ;
-- la date est enregistrée ;
-- l'heure est enregistrée ;
-- la progression est recalculée.
-
----
-
-## Historique
-
-Toutes les validations sont conservées.
-
-| Date | Heure |
-|------|--------|
-|01/04|08h15|
-|02/04|08h12|
-|03/04|08h08|
-
----
-
-## Reset
-
-Le Reset :
-
-- termine la série actuelle ;
-- remet le compteur à zéro ;
-- crée automatiquement une nouvelle série ;
-- conserve les anciennes.
-
----
-
-## Historique des séries
-
-Chaque tâche pourra afficher :
-
-```
-Progression 1
-
-01 Avril
-
-↓
-
-11 Avril
-
-11 jours
-
---------------------
-
-Progression 2
-
-13 Avril
-
-↓
-
-Aujourd'hui
-
-8 jours
-```
-
----
-
-## Objectif
-
-Lorsqu'un objectif est défini :
-
-```
-18 / 30 jours
-```
-
-Une barre de progression pourra être affichée.
-
----
-
-# 6. Règles de gestion
-
-## RG-01
-
-Une tâche ne peut être validée qu'une seule fois par jour.
-
-## RG-02
-
-Chaque validation possède :
-
-- une date ;
-- une heure.
-
-## RG-03
-
-Les validations ne sont jamais supprimées.
-
-## RG-04
-
-Le Reset ne supprime jamais les anciennes données.
-
-## RG-05
-
-Chaque Reset clôt une série.
-
-## RG-06
-
-Une tâche peut posséder plusieurs séries.
-
-## RG-07
-
-Le compteur affiché correspond uniquement à la série active.
-
-## RG-08
-
-Le nombre de jours est calculé automatiquement.
-
----
-
-# 7. Modèle métier
-
-Le domaine métier repose sur trois entités principales.
-
-## Tâche
-
-Représente une habitude.
-
-Exemples :
-
-- Lecture
-- Sport
-- Douche
-- Prière
-
----
-
-## Série
-
-Une série représente une période continue de réussite.
-
-Exemple :
-
-```
-01 Avril
-
-↓
-
-15 Avril
-
-15 jours
-```
-
-Une tâche possède :
-
-- une série active ;
-- plusieurs anciennes séries.
-
----
-
-## Validation
-
-Une validation représente un clic sur **Accompli**.
-
-Elle contient :
-
-- la date ;
-- l'heure ;
-- le timestamp complet.
-
----
-
-# 8. Interfaces prévues
-
-## Tableau de bord
-
-```
-Mes tâches
-
----------------------------------
-
-SPORT
-
-18 jours
-
-[ Accompli ]
-
-[ Reset ]
-
----------------------------------
-
-Lecture
-
-6 jours
-
-[ Accompli ]
-
-[ Reset ]
-```
-
----
-
-## Historique
-
-```
-SPORT
-
-Progression actuelle
-
-18 jours
-
-Historique
-
-Progression 1
-
-11 jours
-
-01 Avril
-
-↓
-
-11 Avril
-
------------------
-
-Progression 2
-
-18 jours
-
-13 Avril
-
-↓
-
-Aujourd'hui
-```
-
----
-
-## Création
-
-```
-Nom
-
-Description
-
-Objectif
-
-[ Enregistrer ]
-```
-
----
-
-# 9. Contraintes techniques
-
-## Technologies
-
-Backend :
-
-- PHP 8+
-
-Base de données :
-
-- MySQL 8
-
-Frontend :
-
-- HTML5
-- CSS3
-- JavaScript
-- Bootstrap (optionnel)
-
-Accès aux données :
-
-- PDO
-- Requêtes préparées
-
----
-
-# 10. Architecture globale
-
-## Philosophie
-
-Le projet devra être conçu selon une architecture en couches.
-
-```
-Interface Web
-
-        │
-
+Interface
+    ↓
 Controllers
-
-        │
-
-Services
-
-        │
-
+    ↓
+Services       ← cœur de l'application, logique métier pure
+    ↓
 Repositories
-
-        │
-
+    ↓
 Database
-
-        │
-
+    ↓
 MySQL
 ```
 
-Chaque couche possède une responsabilité unique.
+Chaque couche ne connaît que la couche immédiatement inférieure. Les Controllers ne contiennent jamais de logique métier ; les Services ne dépendent jamais de HTTP ni de PDO. Cette règle, plus que le schéma lui-même, est ce qui permettra à une future API REST et à une future application Flutter de réutiliser l'intégralité de la logique métier sans en réécrire une seule ligne.
 
-La logique métier devra rester indépendante :
-
-- de la base de données ;
-- de l'interface graphique ;
-- des appels HTTP.
-
-Cette architecture facilitera les évolutions futures.
+Le détail complet — rôle de chaque dossier, de chaque classe, scénarios pas à pas — est documenté dans [`docs/README_ARCHITECTURE.md`](docs/README_ARCHITECTURE.md).
 
 ---
 
-## Source de vérité
+## Documentation
 
-L'application ne devra pas enregistrer directement un compteur.
+Toute la conception du projet est documentée en détail dans le dossier [`docs/`](docs). C'est la référence à consulter avant toute contribution ou évolution du projet.
 
-À la place, elle enregistrera des événements métier :
+| Document                                                       | Contenu                                                                                 |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| [`docs/CAHIER_DES_CHARGES.md`](docs/CAHIER_DES_CHARGES.md)     | Besoin fonctionnel, règles de gestion, modèle métier, critères d'acceptation            |
+| [`docs/README_ARCHITECTURE.md`](docs/README_ARCHITECTURE.md)   | Organisation du code en couches, rôle de chaque composant, scénarios complets           |
+| [`docs/README_DATABASE.md`](docs/README_DATABASE.md)           | Schéma relationnel MySQL complet, `CREATE TABLE`, requêtes types, index                 |
+| [`docs/README_IMPORT_EXPORT.md`](docs/README_IMPORT_EXPORT.md) | Spécification officielle du format d'échange `.ptracker`                                |
+| [`docs/README_API.md`](docs/README_API.md)                     | Documentation de référence de la future API REST                                        |
+| [`docs/README_CONVENTIONS.md`](docs/README_CONVENTIONS.md)     | Charte des conventions du projet (nommage, langue, dates, identifiants, glossaire, ADR) |
 
-- création d'une tâche ;
-- validation ;
-- reset.
-
-Le compteur sera calculé automatiquement à partir de ces événements.
-
-Cette approche présente plusieurs avantages :
-
-- aucune incohérence entre compteur et historique ;
-- possibilité de recalculer les statistiques ;
-- ajout facile de nouvelles règles ;
-- meilleure évolutivité.
-
-L'historique constitue donc la **source de vérité** du système.
+> En cas de question sur une règle de nommage, de format ou de style, [`docs/README_CONVENTIONS.md`](docs/README_CONVENTIONS.md) fait référence. En cas de question sur le besoin fonctionnel, [`docs/CAHIER_DES_CHARGES.md`](docs/CAHIER_DES_CHARGES.md) fait référence.
 
 ---
 
-# 11. Évolutivité vers une application mobile
+## Démarrage rapide
 
-L'une des exigences majeures du projet est de permettre le développement futur d'une application mobile sans devoir réécrire le backend.
+### Prérequis
 
-Pour atteindre cet objectif, le projet devra être conçu dès le départ autour d'une architecture compatible avec une API REST.
+- PHP 8.0 ou supérieur
+- MySQL 8
+- Composer
 
-## Première étape
+### Installation
 
-Développement d'une interface Web.
-
-```
-Navigateur
-
-↓
-
-Controllers
-
-↓
-
-Services
-
-↓
-
-Repositories
-
-↓
-
-MySQL
+```bash
+git clone <url-du-dépôt> progress-tracker
+cd progress-tracker
+composer install
+cp .env.example .env
 ```
 
----
-
-## Deuxième étape
-
-Ajout d'une API REST utilisant exactement les mêmes Services.
+Renseigner ensuite les identifiants de connexion à la base de données dans `.env` :
 
 ```
-Application Web
-
-        │
-
-        ├───────────────┐
-
-        ▼               ▼
-
- Controllers        API REST
-
-        │               │
-
-        └──────┬────────┘
-
-               ▼
-
-           Services
-
-               ▼
-
-         Repositories
-
-               ▼
-
-             MySQL
+DB_HOST=localhost
+DB_NAME=progress_tracker
+DB_USER=...
+DB_PASSWORD=...
+APP_DEBUG=true
 ```
 
-Les Services constituent le cœur de l'application.
+### Initialisation de la base de données
 
-Les Controllers Web et les Controllers API ne font que les appeler.
-
----
-
-## Troisième étape
-
-Développement d'une application mobile.
-
-L'application mobile communiquera avec l'API.
-
-```
-Flutter
-
-↓
-
-HTTP
-
-↓
-
-API REST
-
-↓
-
-Services
-
-↓
-
-Repositories
-
-↓
-
-MySQL
+```bash
+php bin/migrate.php
 ```
 
-Ainsi :
+Ce script applique toutes les migrations SQL du dossier `migrations/` dans l'ordre, en s'appuyant sur la table `schema_migrations` pour ne jamais rejouer une migration déjà appliquée (voir [`docs/README_DATABASE.md`, section 11](docs/README_DATABASE.md)).
 
-- aucune logique métier ne sera dupliquée ;
-- les règles seront centralisées ;
-- le backend restera unique.
+### Lancement en local
 
----
+```bash
+php -S localhost:8000 -t public
+```
 
-## Progressive Web App
-
-Avant même le développement de l'application mobile, l'application web pourra évoluer vers une **Progressive Web App (PWA)**.
-
-Cela permettra notamment :
-
-- une installation sur smartphone ;
-- un lancement comme une application native ;
-- un affichage plein écran ;
-- un accès plus rapide ;
-- la possibilité d'ajouter ultérieurement des fonctionnalités hors ligne et des notifications.
-
-Cette étape constitue une évolution naturelle avant le développement d'une application mobile dédiée.
+L'application est alors accessible sur `http://localhost:8000`.
 
 ---
 
-## Choix technologiques
+## Structure du dépôt
 
-Le backend restera développé en PHP.
+```
+progress-tracker/
+├── public/          # Points d'entrée HTTP (application web et, à terme, API)
+├── src/              # Code source (Controllers, Services, Repositories, Domain...)
+├── migrations/       # Scripts SQL de migration du schéma
+├── bin/              # Scripts utilitaires (migration, génération de jeton API...)
+├── tests/            # Tests unitaires et d'intégration
+├── docs/             # Documentation technique complète (voir ci-dessus)
+├── composer.json
+└── .env.example
+```
 
-Ce choix est motivé par :
-
-- la simplicité de développement ;
-- la maîtrise complète de l'architecture ;
-- la facilité d'hébergement ;
-- la possibilité de créer facilement une API REST.
-
-Pour la future application mobile, **Flutter** est recommandé.
-
-Flutter permettra de développer :
-
-- Android ;
-- iOS ;
-- Windows ;
-- Linux ;
-- macOS ;
-- Web.
-
-à partir d'un code unique.
+L'arborescence complète et détaillée du dossier `src/` est décrite dans [`docs/README_ARCHITECTURE.md`, section 3](docs/README_ARCHITECTURE.md).
 
 ---
 
-# 12. Évolutions futures
+## Feuille de route
 
-Le projet devra permettre l'ajout de :
+- [x] Cahier des charges et documentation technique complète
+- [ ] Application web (V1) — création et suivi de tâches, calcul des séries
+- [ ] Export / import `.ptracker`
+- [ ] API REST (V2)
+- [ ] Progressive Web App
+- [ ] Application mobile Flutter (V3)
 
-- authentification ;
-- multi-utilisateurs ;
-- statistiques ;
-- graphiques ;
-- calendrier ;
-- notifications ;
-- rappels ;
-- catégories ;
-- priorités ;
-- tâches hebdomadaires ;
-- tâches mensuelles ;
-- badges ;
-- score de régularité ;
-- export PDF ;
-- export Excel ;
-- API publique ;
-- synchronisation Cloud ;
-- application Flutter.
+Le détail de chaque étape est décrit dans [`docs/CAHIER_DES_CHARGES.md`, section 11](docs/CAHIER_DES_CHARGES.md).
 
 ---
 
-# 13. Critères d'acceptation
+## Export et sauvegarde des données
 
-Le projet sera considéré conforme lorsque :
-
-- plusieurs tâches peuvent être créées ;
-- une tâche peut être validée quotidiennement ;
-- une seule validation par jour est autorisée ;
-- les validations sont historisées ;
-- la date et l'heure sont enregistrées ;
-- les séries sont calculées automatiquement ;
-- le Reset remet uniquement la série active à zéro ;
-- les anciennes séries restent consultables ;
-- l'architecture permet l'ajout d'une API REST sans modification majeure ;
-- une future application Flutter pourra consommer cette API.
+Progress Tracker permet à tout moment d'exporter l'intégralité de ses données (tâches et historique complet) dans un fichier `ProgressTrackerExport.ptracker`, une archive ouverte et documentée, réimportable sur n'importe quelle installation. Le format complet, ses règles de validation et sa stratégie de compatibilité entre versions sont décrits dans [`docs/README_IMPORT_EXPORT.md`](docs/README_IMPORT_EXPORT.md).
 
 ---
 
-# 14. Conclusion
+## Licence
 
-**Progress Tracker** est conçu comme un projet d'apprentissage et de production.
+Projet personnel — licence à définir.
 
-À court terme, il offrira une interface web permettant de suivre efficacement des habitudes personnelles.
+---
 
-À moyen terme, il pourra évoluer vers une **Progressive Web App**, offrant une expérience proche d'une application native sur smartphone.
-
-À long terme, son architecture permettra le développement d'une application **Flutter** utilisant le même backend PHP via une API REST, garantissant la réutilisation de la logique métier et la pérennité du projet.
-
-L'objectif est donc de construire un logiciel robuste, modulaire et évolutif, capable d'accompagner de futures fonctionnalités sans remise en cause de son architecture fondamentale.
+*Pour toute question de conception, se référer en priorité à la documentation du dossier [`docs/`](docs).*
